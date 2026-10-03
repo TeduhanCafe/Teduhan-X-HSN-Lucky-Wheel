@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teduhan x HSN Lucky Wheel</title>
+<style>
+:root{--bg:#f7f4ee;--card:#fff;--ink:#222;--muted:#777;--accent:#111}
+*{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:1100px;margin:auto;padding:20px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center}
+h1{font-size:28px;margin:0 0 4px}.sub{color:var(--muted)}
+.grid{display:grid;grid-template-columns:1.4fr .8fr;gap:18px;margin-top:18px}
+.card{background:var(--card);border-radius:20px;padding:18px;box-shadow:0 4px 20px #0000000d}
+.wheelbox{text-align:center}.wheel{width:min(76vw,520px);aspect-ratio:1;border-radius:50%;margin:10px auto;position:relative;border:12px solid #222;overflow:hidden;transition:transform 4s cubic-bezier(.15,.75,.15,1);background:conic-gradient(#f4c6c6 0 20%,#cfe5d0 20% 40%,#d5d8f0 40% 60%,#f2dfad 60% 80%,#ddd 80% 100%)}
+.wheel:after{content:"";position:absolute;inset:39%;background:#fff;border-radius:50%;border:5px solid #222;z-index:2}
+.pointer{font-size:38px;line-height:1;text-align:center;transform:rotate(180deg);margin-bottom:-2px}
+button{border:0;border-radius:12px;padding:13px 18px;font-weight:700;font-size:16px;cursor:pointer;background:#111;color:#fff}
+button:disabled{opacity:.35;cursor:not-allowed}.btn2{background:#e8e5df;color:#111}.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.result{font-size:22px;font-weight:800;min-height:32px;margin:8px}.status{font-weight:700;margin:10px}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:10px 6px;border-bottom:1px solid #eee}.qty{text-align:right;font-weight:700}
+.badge{display:inline-block;padding:6px 10px;border-radius:99px;background:#eee;font-size:13px}.ok{background:#dcefdc}.warn{background:#f8e4bd}.closed{background:#f3caca}
+.small{font-size:13px;color:var(--muted);line-height:1.45}.footer{margin-top:15px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}.wheel{width:min(86vw,500px)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>🎡 Teduhan × HSN Lucky Wheel</h1>
+      <div class="sub">Spend RM50+ = 1 spin • Every spin wins</div>
+    </div>
+    <span id="dayBadge" class="badge ok">DAY 1</span>
+  </div>
+
+  <div class="grid">
+    <section class="card wheelbox">
+      <div class="pointer">▼</div>
+      <div id="wheel" class="wheel"></div>
+      <div id="result" class="result">Staff: open the spin first.</div>
+      <div class="row">
+        <button id="openBtn">🔓 Open Spin</button>
+        <button id="spinBtn" disabled>🎡 SPIN</button>
+        <button id="nextBtn" class="btn2" disabled>Next Customer</button>
+      </div>
+      <div class="footer">
+        <div id="status" class="status">🔒 Spin locked</div>
+        <div class="small">Staff verifies the RM50+ receipt, taps Open Spin, then lets the customer press SPIN.</div>
+      </div>
+    </section>
+
+    <aside class="card">
+      <h2 style="margin-top:0">Prize Stock</h2>
+      <div class="row" style="justify-content:flex-start;margin-bottom:12px">
+        <button id="day1Btn" class="btn2">Day 1</button>
+        <button id="day2Btn" class="btn2">Day 2</button>
+        <button id="resetBtn" class="btn2">Reset Day</button>
+      </div>
+      <div id="count">25 spins remaining</div>
+      <table>
+        <thead><tr><th>Prize</th><th class="qty">Remaining</th></tr></thead>
+        <tbody id="stock"></tbody>
+      </table>
+      <p class="small">A prize is removed from the pool immediately after it is won. When all 25 spins are used, the day locks automatically.</p>
+      <hr>
+      <h3>Staff rules</h3>
+      <ul class="small">
+        <li>RM50+ in one receipt = 1 spin.</li>
+        <li>RM100 = 2 spins; RM150 = 3 spins max.</li>
+        <li>Verify the receipt before opening a spin.</li>
+        <li>After result, tap Next Customer only after the prize is handed over.</li>
+      </ul>
+    </aside>
+  </div>
+</div>
+
+<script>
+const initial = {
+  1: [
+    ["🏆 Montigo",1],["🧴 Thermo Bottle",2],["🌬️ Handheld Fan",2],
+    ["🛍️ Mini IKEA Bag",10],["🎟️ RM10 Teduhan Voucher",10]
+  ],
+  2: [
+    ["🏆 Montigo",1],["🧴 Thermo Bottle",1],["🌬️ Handheld Fan",2],
+    ["🛍️ Mini IKEA Bag",10],["🎟️ RM10 Teduhan Voucher",11]
+  ]
+};
+let stock = JSON.parse(JSON.stringify(initial));
+let day=1, open=false, spinning=false, rotation=0, currentResult=null;
+
+const wheel=document.getElementById("wheel"), result=document.getElementById("result"),
+      status=document.getElementById("status"), openBtn=document.getElementById("openBtn"),
+      spinBtn=document.getElementById("spinBtn"), nextBtn=document.getElementById("nextBtn"),
+      stockEl=document.getElementById("stock"), countEl=document.getElementById("count"),
+      dayBadge=document.getElementById("dayBadge");
+
+function total(){return stock[day].reduce((a,x)=>a+x[1],0)}
+function render(){
+  dayBadge.textContent="DAY "+day;
+  countEl.textContent=total()+" spins remaining";
+  stockEl.innerHTML=stock[day].map(x=>`<tr><td>${x[0]}</td><td class="qty">${x[1]}</td></tr>`).join("");
+  const full=total()===0;
+  if(full){status.textContent="🔒 TODAY'S LUCKY DRAW IS FULL";dayBadge.className="badge closed";}
+  else if(open){status.textContent="🟢 Customer can spin";dayBadge.className="badge ok";}
+  else {status.textContent="🔒 Spin locked";dayBadge.className="badge ok";}
+  openBtn.disabled=full||open||spinning;
+  spinBtn.disabled=!open||spinning||full;
+  nextBtn.disabled=spinning||!currentResult;
+}
+function setWheel(){
+  const labels=[];
+  stock[day].forEach(x=>{for(let i=0;i<x[1];i++) labels.push(x[0])});
+  // Visual segments are decorative; weighted outcome is controlled by the remaining stock.
+  wheel.style.background = `conic-gradient(#f4c6c6 0 20%,#cfe5d0 20% 40%,#d5d8f0 40% 60%,#f2dfad 60% 80%,#ddd 80% 100%)`;
+}
+function choose(){
+  const pool=[];
+  stock[day].forEach((x,i)=>{for(let n=0;n<x[1];n++) pool.push(i)});
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+openBtn.onclick=()=>{open=true;currentResult=null;result.textContent="Customer: press SPIN!";render()};
+spinBtn.onclick=()=>{
+  if(!open||spinning||total()===0)return;
+  spinning=true;open=false;spinBtn.disabled=true;openBtn.disabled=true;result.textContent="🎡 Spinning...";
+  const idx=choose(), prize=stock[day][idx][0];
+  stock[day][idx][1]--;
+  const extra=1440+Math.floor(Math.random()*360);
+  rotation+=extra; wheel.style.transform=`rotate(${rotation}deg)`;
+  setTimeout(()=>{currentResult=prize;result.textContent="🎉 YOU WON: "+prize;spinning=false;render()},4100);
+};
+nextBtn.onclick=()=>{currentResult=null;result.textContent="Staff: open the spin for the next customer.";render()};
+function switchDay(d){if(spinning)return;day=d;open=false;currentResult=null;result.textContent="Staff: open the spin first.";setWheel();render()}
+document.getElementById("day1Btn").onclick=()=>switchDay(1);
+document.getElementById("day2Btn").onclick=()=>switchDay(2);
+document.getElementById("resetBtn").onclick=()=>{if(spinning)return;if(confirm("Reset this day's prize stock?")){stock[day]=JSON.parse(JSON.stringify(initial[day]));switchDay(day)}};
+setWheel();render();
+</script>
+</body>
+</html>
